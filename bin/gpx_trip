@@ -1,0 +1,46 @@
+#!/usr/bin/env python
+"""Command line interface to gpx_trip."""
+
+import argparse
+import logging
+
+import gpx_trip
+
+logger = logging.getLogger(__name__)
+
+logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.StreamHandler())
+
+parser = argparse.ArgumentParser()
+parser.add_argument("action", choices=["map", "details"])
+parser.add_argument("file")
+parser.add_argument("--output", default="out.png")
+
+args = parser.parse_args()
+
+if args.action == "map":
+    gpx_trip.construct_trip_map(open(args.file), output=args.output)
+else:
+    info = gpx_trip.extract_info(open(args.file))
+    print("Stops:")
+    for i, stop in enumerate(info["stops"]):
+        print(" ", stop["short_name"])
+        print("    Long name:", stop["name"])
+        print("    Latitude:", stop["lat"])
+        print("    Longitude:", stop["lon"])
+        print("    Time spent at stop:", info["time_at_stops"][i])
+    print("Trips:")
+    for trip in info["trips"]:
+        print(
+            "    {} -> {}".format(
+                info["stops"][trip["from"]]["short_name"],
+                info["stops"][trip["to"]]["short_name"],
+            )
+        )
+        print(
+            "      From {} to {} ({})".format(
+                trip["start"].strftime("%H:%M:%S"),
+                trip["end"].strftime("%H:%M:%S"),
+                trip["end"] - trip["start"],
+            )
+        )
