@@ -11,7 +11,7 @@ setup(
     packages=["gpx_trip"],
     scripts=["bin/gpx_trip"],
     license="LICENCE.txt",
-    long_description=open("README.txt").read(),
+    long_description=open("README.md").read(),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Programming Language :: Python :: 3",
