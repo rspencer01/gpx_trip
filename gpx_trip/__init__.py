@@ -90,7 +90,7 @@ def extract_trips(segment, stops):
     while trip_start < len(dat) - 1:
         trip_end = trip_start
         while (
-            trip_end < len(dat) - 1
+            trip_end < len(dat) - 2
             and dat["stop"][trip_end + 1] == dat["stop"][trip_start]
         ):
             trip_end += 1
@@ -110,21 +110,21 @@ def extract_trips(segment, stops):
     return {"time_at_stops": time_at_stops, "trips": trips}
 
 
-def extract_info(input_file):
+def extract_info(input_file, predefined_stops=[], geocode=True):
     """Get all the information from the input file."""
     logger.info("Extracting segment")
     segment = extract_segment(input_file)
     logger.info("Extracting stops")
-    stops = extract_stops(segment)
+    stops = extract_stops(segment, predefined_stops, geocode)
     logger.info("Extracting trips")
     trips = extract_trips(segment, stops)
     trips.update({"stops": stops, "extent": get_extent(segment), "segment": segment})
     return trips
 
 
-def construct_trip_map(input_file, output_file):
+def construct_trip_map(input_file, output_file, predefined_stops=[]):
     """Save an image of trip infos."""
-    info = extract_info(input_file)
+    info = extract_info(input_file, predefined_stops, False)
     logger.info("Rendering image")
 
     mm = geotiler.Map(extent=info["extent"], size=(768, 768))
@@ -157,7 +157,7 @@ def construct_trip_map(input_file, output_file):
     surface.write_to_png(open(output_file, "wb"))
 
 
-def extract_stops(segment):
+def extract_stops(segment, predefined_stops=[], geocode=True):
     """Extract likely stop locations from the track."""
     lats = traces.TimeSeries([(p.time, p.latitude) for p in segment.points])
     lons = traces.TimeSeries([(p.time, p.longitude) for p in segment.points])
@@ -179,21 +179,35 @@ def extract_stops(segment):
     y_kmeans = clss
     kmeans = kmlast
 
-    geocoder = geocoders.Photon()
-
     stops = [
         p
         for n, p in enumerate(kmeans.means_)
         if kmeans.bic(dat.iloc[y_kmeans == n][["lat", "lon"]]) < -30
     ]
     stops_dict = []
+    if geocode:
+        geocoder = geocoders.Photon()
     for stop in stops:
-        try:
-            location_name = geocoder.reverse("{}, {}".format(*stop)).address
-            short_location_name = " ".join(location_name.split(",")[:2])
-        except (exc.GeocoderTimedOut, exc.GeocoderServiceError):
-            location_name = None
-            short_location_name = hashlib.sha256(str(stop).encode('utf-8'))[:5]
+        for predefined_stop in predefined_stops:
+            if (
+                distance.distance(
+                    stop, (predefined_stop["lat"], predefined_stop["lon"])
+                ).meters
+                < 90
+            ):
+                location_name = short_location_name = predefined_stop["name"]
+                break
+        else:
+            try:
+                if not geocode:
+                    raise exc.GeocoderTimedOut
+                location_name = geocoder.reverse("{}, {}".format(*stop)).address
+                short_location_name = " ".join(location_name.split(",")[:2])
+            except (exc.GeocoderTimedOut, exc.GeocoderServiceError):
+                location_name = None
+                short_location_name = hashlib.sha256(
+                    str(stop).encode("utf-8")
+                ).hexdigest()[:5]
         stops_dict.append(
             {
                 "short_name": short_location_name,

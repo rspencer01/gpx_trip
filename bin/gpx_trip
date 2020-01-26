@@ -6,6 +6,8 @@ import logging
 
 import gpx_trip
 
+import yaml
+
 logger = logging.getLogger(__name__)
 
 logger.setLevel(logging.DEBUG)
@@ -15,13 +17,21 @@ parser = argparse.ArgumentParser()
 parser.add_argument("action", choices=["map", "details"])
 parser.add_argument("file")
 parser.add_argument("--output", default="out.png")
+parser.add_argument("--stops", default=None)
 
 args = parser.parse_args()
 
-if args.action == "map":
-    gpx_trip.construct_trip_map(open(args.file), output=args.output)
+if args.stops is not None:
+    stops = yaml.safe_load(open(args.stops).read())
 else:
-    info = gpx_trip.extract_info(open(args.file))
+    stops = []
+
+if args.action == "map":
+    gpx_trip.construct_trip_map(
+        open(args.file), output_file=args.output, predefined_stops=stops
+    )
+else:
+    info = gpx_trip.extract_info(open(args.file), predefined_stops=stops)
     print("Stops:")
     for i, stop in enumerate(info["stops"]):
         print(" ", stop["short_name"])
