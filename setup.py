@@ -17,4 +17,5 @@ setup(
         "Programming Language :: Python :: 3",
     ],
     python_requires=">=3.5",
+    install_requires=["gpxpy==1.3.5","pandas==0.25.3","traces==0.5.2"]
 )
