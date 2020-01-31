@@ -196,8 +196,10 @@ def extract_stops(segment, predefined_stops=[], geocode=True):
                 < 90
             ):
                 location_name = short_location_name = predefined_stop["name"]
+                emoji_name = predefined_stop["emoji_name"]
                 break
         else:
+            emoji_name = ''
             try:
                 if not geocode:
                     raise exc.GeocoderTimedOut
@@ -212,6 +214,7 @@ def extract_stops(segment, predefined_stops=[], geocode=True):
             {
                 "short_name": short_location_name,
                 "name": location_name,
+                "emoji_name": emoji_name,
                 "lat": stop[0],
                 "lon": stop[1],
             }
