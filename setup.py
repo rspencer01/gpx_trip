@@ -5,7 +5,7 @@ from setuptools import setup
 setup(
     name="gpx_trip",
     description="Extract stops and journeys from gpx traces",
-    version="0.0.2dev",
+    version="0.0.3dev",
     author="R. A. Spencer",
     author_email="general@robertandrewspencer.com",
     packages=["gpx_trip"],
