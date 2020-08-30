@@ -75,9 +75,10 @@ def extract_trips(segment, stops):
         else:
             stop.append(-1)
     # Smooth out errors
-    for i in range(1, len(stop) - 1):
-        if stop[i - 1] == stop[i + 1]:
-            stop[i] = stop[i - 1]
+    for i in range(2, len(stop) - 1):
+        if stop[i - 2] == stop[i + 1]:
+            stop[i] = stop[i - 2]
+            stop[i - 1] = stop[i - 2]
     dat["stop"] = stop
 
     time_at_stops = dict(
@@ -163,6 +164,16 @@ def extract_stops(segment, predefined_stops=[], geocode=True):
     lons = traces.TimeSeries([(p.time, p.longitude) for p in segment.points])
     dat = pd.DataFrame(lats.moving_average(300, pandas=True), columns=["lat"])
     dat["lon"] = lons.moving_average(300, pandas=True)
+    dist = [None, None]
+    prev, prev_2 = None, None
+    for t, lat, lon in dat.itertuples():
+        if prev_2 is not None:
+            dist.append(distance.distance(
+                prev_2, (lat, lon)
+            ).meters)
+        prev_2, prev = prev, (lat,lon)
+    dat["dist"] = dist
+    dat = dat[dat["dist"] < 10.]
 
     lst = 0
     clss = None
@@ -196,7 +207,7 @@ def extract_stops(segment, predefined_stops=[], geocode=True):
                 < 90
             ):
                 location_name = short_location_name = predefined_stop["name"]
-                emoji_name = predefined_stop["emoji_name"]
+                emoji_name = predefined_stop.get("emoji_name", "")
                 break
         else:
             emoji_name = ''
