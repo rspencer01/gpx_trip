@@ -24,41 +24,25 @@ from geopy import distance, exc, geocoders
 
 import geotiler
 
-import gpxpy
-
 import pandas as pd
 
 from sklearn.mixture import GaussianMixture
 
 import traces
 
+from .trace import Trace
+
 logger = logging.getLogger(__name__)
 
 
-def extract_segment(input_file):
-    """Extract the single list of points from the file."""
-    gpxin = gpxpy.parse(input_file)
-    assert len(gpxin.tracks) == 1, "Input file must have a single track"
-    track = gpxin.tracks[0]
-    assert len(track.segments) == 1, "Input track must have a single segment"
-    return track.segments[0]
-
-
-def get_extent(segment):
-    """Find the extent of the segment for map rendering."""
-    lats = [p.latitude for p in segment.points]
-    lons = [p.longitude for p in segment.points]
-    return (min(lons), min(lats), max(lons), max(lats))
-
-
-def extract_trips(segment, stops):
+def extract_trips(trace, stops):
     """Find the trips between stops."""
     num_stops = len(stops)
 
     dat = pd.DataFrame(
         [
             {"timestamp": p.time, "lat": p.latitude, "lon": p.longitude}
-            for p in segment.points
+            for p in trace.segment.points
         ]
     )
     stop = []
@@ -114,12 +98,12 @@ def extract_trips(segment, stops):
 def extract_info(input_file, predefined_stops=[], geocode=True):
     """Get all the information from the input file."""
     logger.info("Extracting segment")
-    segment = extract_segment(input_file)
+    trace = Trace(input_file)
     logger.info("Extracting stops")
-    stops = extract_stops(segment, predefined_stops, geocode)
+    stops = extract_stops(trace, predefined_stops, geocode)
     logger.info("Extracting trips")
-    trips = extract_trips(segment, stops)
-    trips.update({"stops": stops, "extent": get_extent(segment), "segment": segment})
+    trips = extract_trips(trace, stops)
+    trips.update({"stops": stops, "extent": trace.extent(), "segment": trace})
     return trips
 
 
@@ -143,7 +127,7 @@ def construct_trip_map(input_file, output_file, predefined_stops=[]):
     cr.set_line_cap(cairo.LINE_CAP_ROUND)
     cr.set_line_width(8)
     n = 0
-    for pt in info["segment"].points:
+    for pt in info["segment"].segment.points:
         cr.set_source_rgba(0.5, 0.0, 0.0, 0.9)
         cr.arc(*mm.rev_geocode((pt.longitude, pt.latitude)), 3, 0, 2 * 3.1415)
         cr.close_path()
@@ -158,10 +142,10 @@ def construct_trip_map(input_file, output_file, predefined_stops=[]):
     surface.write_to_png(open(output_file, "wb"))
 
 
-def extract_stops(segment, predefined_stops=[], geocode=True):
+def extract_stops(trace, predefined_stops=[], geocode=True):
     """Extract likely stop locations from the track."""
-    lats = traces.TimeSeries([(p.time, p.latitude) for p in segment.points])
-    lons = traces.TimeSeries([(p.time, p.longitude) for p in segment.points])
+    lats = traces.TimeSeries([(p.time, p.latitude) for p in trace.segment.points])
+    lons = traces.TimeSeries([(p.time, p.longitude) for p in trace.segment.points])
     dat = pd.DataFrame(lats.moving_average(300, pandas=True), columns=["lat"])
     dat["lon"] = lons.moving_average(300, pandas=True)
     dist = [None, None]
