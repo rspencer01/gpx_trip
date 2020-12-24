@@ -14,7 +14,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Find trips from a gpx track."""
 
-import hashlib
 import logging
 from math import cos, sin
 
@@ -100,7 +99,7 @@ def extract_info(input_file, predefined_stops=[], geocode=True):
     logger.info("Extracting segment")
     trace = Trace(input_file)
     logger.info("Extracting stops")
-    stops = extract_stops(trace, predefined_stops, geocode)
+    stops = trace.extract_stops(predefined_stops, geocode)
     logger.info("Extracting trips")
     trips = extract_trips(trace, stops)
     trips.update({"stops": stops, "extent": trace.extent(), "segment": trace})
@@ -140,78 +139,3 @@ def construct_trip_map(input_file, output_file, predefined_stops=[]):
         cr.close_path()
         cr.stroke()
     surface.write_to_png(open(output_file, "wb"))
-
-
-def extract_stops(trace, predefined_stops=[], geocode=True):
-    """Extract likely stop locations from the track."""
-    lats = traces.TimeSeries([(p.time, p.latitude) for p in trace.segment.points])
-    lons = traces.TimeSeries([(p.time, p.longitude) for p in trace.segment.points])
-    dat = pd.DataFrame(lats.moving_average(300, pandas=True), columns=["lat"])
-    dat["lon"] = lons.moving_average(300, pandas=True)
-    dist = [None, None]
-    prev, prev_2 = None, None
-    for t, lat, lon in dat.itertuples():
-        if prev_2 is not None:
-            dist.append(distance.distance(
-                prev_2, (lat, lon)
-            ).meters)
-        prev_2, prev = prev, (lat,lon)
-    dat["dist"] = dist
-    dat = dat[dat["dist"] < 10.]
-
-    lst = 0
-    clss = None
-    kmlast = None
-    for n in range(1, 20):
-        kmeans = GaussianMixture(n, random_state=0)
-        kmeans.fit(dat[["lat", "lon"]])
-        y_kmeans = kmeans.predict(dat[["lat", "lon"]])
-        if kmeans.bic(dat[["lat", "lon"]]) > lst:
-            break
-        clss = y_kmeans
-        kmlast = kmeans
-        lst = kmeans.bic(dat[["lat", "lon"]])
-    y_kmeans = clss
-    kmeans = kmlast
-
-    stops = [
-        p
-        for n, p in enumerate(kmeans.means_)
-        if kmeans.bic(dat.iloc[y_kmeans == n][["lat", "lon"]]) < -30
-    ]
-    stops_dict = []
-    if geocode:
-        geocoder = geocoders.Photon()
-    for stop in stops:
-        for predefined_stop in predefined_stops:
-            if (
-                distance.distance(
-                    stop, (predefined_stop["lat"], predefined_stop["lon"])
-                ).meters
-                < 90
-            ):
-                location_name = short_location_name = predefined_stop["name"]
-                emoji_name = predefined_stop.get("emoji_name", "")
-                break
-        else:
-            emoji_name = ''
-            try:
-                if not geocode:
-                    raise exc.GeocoderTimedOut
-                location_name = geocoder.reverse("{}, {}".format(*stop)).address
-                short_location_name = " ".join(location_name.split(",")[:2])
-            except (exc.GeocoderTimedOut, exc.GeocoderServiceError):
-                location_name = None
-                short_location_name = hashlib.sha256(
-                    str(stop).encode("utf-8")
-                ).hexdigest()[:5]
-        stops_dict.append(
-            {
-                "short_name": short_location_name,
-                "name": location_name,
-                "emoji_name": emoji_name,
-                "lat": stop[0],
-                "lon": stop[1],
-            }
-        )
-    return stops_dict
