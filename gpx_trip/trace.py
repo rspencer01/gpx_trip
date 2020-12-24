@@ -5,6 +5,8 @@ from geopy import distance, exc, geocoders
 
 import gpxpy
 
+from loguru import logger
+
 import pandas as pd
 
 from sklearn.mixture import GaussianMixture
@@ -14,6 +16,7 @@ import traces
 
 class Trace:
     def __init__(self, filename):
+        logger.info("Constructing trace from {}", filename)
         gpxin = gpxpy.parse(filename)
         assert len(gpxin.tracks) == 1, "Input file must have a single track"
         track = gpxin.tracks[0]
@@ -28,6 +31,7 @@ class Trace:
 
     def extract_stops(self, predefined_stops=[], geocode=True):
         """Extract likely stop locations from the track."""
+        logger.debug("Extracting stops from trace")
         lats = traces.TimeSeries([(p.time, p.latitude) for p in self.segment.points])
         lons = traces.TimeSeries([(p.time, p.longitude) for p in self.segment.points])
         # TODO(robert): Built-in 5 minute average
@@ -54,18 +58,23 @@ class Trace:
         # TODO(robert) Built-in 10 meter cutoff
         dat = dat[dat["dist"] < 10.0]
 
+        logger.debug("Filtered to {} stationary points", len(dat))
+
         lst = 0
         clss = None
         kmlast = None
+        # TODO(robert) Limit of at most 20 stops per trace
         for n in range(1, 20):
             kmeans = GaussianMixture(n, random_state=0)
             kmeans.fit(dat[["lat", "lon"]])
             y_kmeans = kmeans.predict(dat[["lat", "lon"]])
-            if kmeans.bic(dat[["lat", "lon"]]) > lst:
+            fitness = kmeans.bic(dat[["lat", "lon"]])
+            logger.debug("Fitting {} points has fitness {}", n, -fitness)
+            if fitness > lst:
                 break
             clss = y_kmeans
             kmlast = kmeans
-            lst = kmeans.bic(dat[["lat", "lon"]])
+            lst = fitness
         y_kmeans = clss
         kmeans = kmlast
 
@@ -73,6 +82,7 @@ class Trace:
             stops = [
                 p
                 for n, p in enumerate(kmeans.means_)
+                # TODO(robert) Hard-coded filtering on the BIC
                 if kmeans.bic(dat.iloc[y_kmeans == n][["lat", "lon"]]) < -30
             ]
         else:
@@ -82,13 +92,14 @@ class Trace:
         if geocode:
             geocoder = geocoders.Photon()
         for stop in stops:
+            logger.debug("Fitting stop {} to predefined stops", stop)
             for predefined_stop in predefined_stops:
-                if (
-                    distance.distance(
-                        stop, (predefined_stop["lat"], predefined_stop["lon"])
-                    ).meters
-                    < 90
-                ):
+                dist = distance.distance(
+                    stop, (predefined_stop["lat"], predefined_stop["lon"])
+                ).meters
+                logger.debug("Stop {} is {}m away", predefined_stop['name'], dist)
+                # TODO(robert) Each stop should be able to specify a size
+                if dist < 90:
                     location_name = short_location_name = predefined_stop["name"]
                     emoji_name = predefined_stop.get("emoji_name", "")
                     break
