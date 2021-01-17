@@ -25,5 +25,6 @@ setup(
         "traces==0.5.2",
         "sklearn==0.0",
         "loguru>=0.5.3",
+        "dataclasses",
     ],
 )

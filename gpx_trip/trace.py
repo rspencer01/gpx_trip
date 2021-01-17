@@ -1,5 +1,4 @@
-import hashlib
-from typing import Tuple
+from typing import Tuple, List
 
 from geopy import distance, exc, geocoders
 
@@ -13,9 +12,11 @@ from sklearn.mixture import GaussianMixture
 
 import traces
 
+from .location import Location
+
 
 class Trace:
-    def __init__(self, filename):
+    def __init__(self, filename : str):
         logger.info("Constructing trace from {}", filename)
         gpxin = gpxpy.parse(filename)
         assert len(gpxin.tracks) == 1, "Input file must have a single track"
@@ -29,7 +30,7 @@ class Trace:
         lons = [p.longitude for p in self.segment.points]
         return (min(lons), min(lats), max(lons), max(lats))
 
-    def extract_stops(self, predefined_stops=[], geocode=True):
+    def extract_stops(self, predefined_stops:List[Location]=[], geocode=True):
         """Extract likely stop locations from the track."""
         logger.debug("Extracting stops from trace")
         lats = traces.TimeSeries([(p.time, p.latitude) for p in self.segment.points])
@@ -53,14 +54,13 @@ class Trace:
             ).meters
 
         dat["dist"] = dat.apply(distance_calculate, axis=1)
-        dat.drop(["lat_shift", "lon_shift"], axis=1)
+        dat = dat.drop(["lat_shift", "lon_shift"], axis=1)
 
         # TODO(robert) Built-in 10 meter cutoff
         dat = dat[dat["dist"] < 10.0]
 
         logger.debug("Filtered to {} stationary points", len(dat))
-
-        lst = 0
+        lst = 1e20
         clss = None
         kmlast = None
         # TODO(robert) Limit of at most 20 stops per trace
@@ -92,42 +92,20 @@ class Trace:
         if geocode:
             geocoder = geocoders.Photon()
         for stop in stops:
+            location = None
             logger.debug("Fitting stop {} to predefined stops", stop)
             for predefined_stop in predefined_stops:
-                dist = distance.distance(
-                    stop, (predefined_stop["lat"], predefined_stop["lon"])
-                ).meters
-                logger.debug("Stop {} is {}m away", predefined_stop['name'], dist)
+                dist = predefined_stop.distance_to(*stop)
+                logger.debug("Stop {} is {}m away", predefined_stop.name, dist)
                 # TODO(robert) Each stop should be able to specify a size
                 if dist < 90:
-                    location_name = short_location_name = predefined_stop["name"]
-                    emoji_name = predefined_stop.get("emoji_name", "")
-                    country = predefined_stop.get("country", None)
+                    location = predefined_stop
                     break
             else:
-                emoji_name = ""
-                try:
-                    if not geocode:
-                        raise exc.GeocoderTimedOut
-                    location = geocoder.reverse("{}, {}".format(*stop))
-                    location_name = location.address
-                    short_location_name = " ".join(location_name.split(",")[:2])
-                    country = location.raw.get("properties", {}).get("country", None)
+                if geocoder is not None:
+                    location = Location.from_geocoder(geocoder, *stop)
+                else:
+                    location = Location.from_coordinates(*stop)
 
-                except (exc.GeocoderTimedOut, exc.GeocoderServiceError):
-                    location_name = None
-                    short_location_name = hashlib.sha256(
-                        str(stop).encode("utf-8")
-                    ).hexdigest()[:5]
-                    country = None
-            stops_dict.append(
-                {
-                    "short_name": short_location_name,
-                    "name": location_name,
-                    "country": country,
-                    "emoji_name": emoji_name,
-                    "lat": stop[0],
-                    "lon": stop[1],
-                }
-            )
+            stops_dict.append(location)
         return stops_dict

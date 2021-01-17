@@ -15,6 +15,7 @@
 """Find trips from a gpx track."""
 
 from math import cos, sin
+from typing import List
 
 import cairo
 
@@ -31,6 +32,8 @@ from sklearn.mixture import GaussianMixture
 import traces
 
 from .trace import Trace
+from .location import Location
+
 
 def extract_trips(trace, stops):
     """Find the trips between stops."""
@@ -45,12 +48,7 @@ def extract_trips(trace, stops):
     stop = []
     for t in dat.index:
         for n, s in enumerate(stops):
-            if (
-                distance.distance(
-                    (dat.iloc[t].lat, dat.iloc[t].lon), (s["lat"], s["lon"])
-                ).meters
-                < 40
-            ):
+            if s.distance_to(dat.iloc[t].lat, dat.iloc[t].lon) < 40:
                 stop.append(n)
                 break
         else:
@@ -92,7 +90,7 @@ def extract_trips(trace, stops):
     return {"time_at_stops": time_at_stops, "trips": trips}
 
 
-def extract_info(input_file, predefined_stops=[], geocode=True):
+def extract_info(input_file, predefined_stops: List[Location] = [], geocode=True):
     """Get all the information from the input file."""
     logger.info("Extracting segment")
     trace = Trace(input_file)
@@ -104,7 +102,7 @@ def extract_info(input_file, predefined_stops=[], geocode=True):
     return trips
 
 
-def construct_trip_map(input_file, output_file, predefined_stops=[]):
+def construct_trip_map(input_file, output_file, predefined_stops: List[Location] = []):
     """Save an image of trip infos."""
     info = extract_info(input_file, predefined_stops, False)
     logger.info("Rendering image")

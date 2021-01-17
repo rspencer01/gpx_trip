@@ -33,7 +33,7 @@ parser.add_argument("--stops", default=None)
 args = parser.parse_args()
 
 if args.stops is not None:
-    stops = yaml.safe_load(open(args.stops).read())
+    stops = map(Location.from_dict, yaml.safe_load(open(args.stops).read()))
 else:
     stops = []
 
@@ -45,17 +45,17 @@ else:
     info = gpx_trip.extract_info(open(args.file), predefined_stops=stops)
     print("Stops:")
     for i, stop in enumerate(info["stops"]):
-        print(" ", stop["short_name"])
-        print("    Long name:", stop["name"])
-        print("    Latitude:", stop["lat"])
-        print("    Longitude:", stop["lon"])
+        print(" ", stop.short_name)
+        print("    Long name:", stop.name)
+        print("    Latitude:", stop.latitude)
+        print("    Longitude:", stop.longitude)
         print("    Time spent at stop:", info["time_at_stops"][i])
     print("Trips:")
     for trip in info["trips"]:
         print(
             "    {} -> {}".format(
-                info["stops"][trip["from"]]["short_name"],
-                info["stops"][trip["to"]]["short_name"],
+                info["stops"][trip["from"]].short_name,
+                info["stops"][trip["to"]].short_name,
             )
         )
         print(
