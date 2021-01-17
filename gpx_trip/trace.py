@@ -102,23 +102,29 @@ class Trace:
                 if dist < 90:
                     location_name = short_location_name = predefined_stop["name"]
                     emoji_name = predefined_stop.get("emoji_name", "")
+                    country = predefined_stop.get("country", None)
                     break
             else:
                 emoji_name = ""
                 try:
                     if not geocode:
                         raise exc.GeocoderTimedOut
-                    location_name = geocoder.reverse("{}, {}".format(*stop)).address
+                    location = geocoder.reverse("{}, {}".format(*stop))
+                    location_name = location.address
                     short_location_name = " ".join(location_name.split(",")[:2])
+                    country = location.raw.get("properties", {}).get("country", None)
+
                 except (exc.GeocoderTimedOut, exc.GeocoderServiceError):
                     location_name = None
                     short_location_name = hashlib.sha256(
                         str(stop).encode("utf-8")
                     ).hexdigest()[:5]
+                    country = None
             stops_dict.append(
                 {
                     "short_name": short_location_name,
                     "name": location_name,
+                    "country": country,
                     "emoji_name": emoji_name,
                     "lat": stop[0],
                     "lon": stop[1],
