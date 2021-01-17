@@ -14,7 +14,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Find trips from a gpx track."""
 
-import logging
 from math import cos, sin
 
 import cairo
@@ -23,6 +22,8 @@ from geopy import distance, exc, geocoders
 
 import geotiler
 
+from loguru import logger
+
 import pandas as pd
 
 from sklearn.mixture import GaussianMixture
@@ -30,9 +31,6 @@ from sklearn.mixture import GaussianMixture
 import traces
 
 from .trace import Trace
-
-logger = logging.getLogger(__name__)
-
 
 def extract_trips(trace, stops):
     """Find the trips between stops."""
