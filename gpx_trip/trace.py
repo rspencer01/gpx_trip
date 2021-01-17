@@ -14,9 +14,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Tuple, List
 
-from geopy import distance, exc, geocoders
-
 import gpxpy
+
+from geopy import distance
 
 from loguru import logger
 
@@ -26,7 +26,7 @@ from sklearn.mixture import GaussianMixture
 
 import traces
 
-from .location import Location
+from .location import Location, get_location
 
 
 class Trace:
@@ -102,24 +102,4 @@ class Trace:
         else:
             stops = []
 
-        stops_dict = []
-        if geocode:
-            geocoder = geocoders.Photon()
-        for stop in stops:
-            location = None
-            logger.debug("Fitting stop {} to predefined stops", stop)
-            for predefined_stop in predefined_stops:
-                dist = predefined_stop.distance_to(*stop)
-                logger.debug("Stop {} is {}m away", predefined_stop.name, dist)
-                # TODO(robert) Each stop should be able to specify a size
-                if dist < 90:
-                    location = predefined_stop
-                    break
-            else:
-                if geocoder is not None:
-                    location = Location.from_geocoder(geocoder, *stop)
-                else:
-                    location = Location.from_coordinates(*stop)
-
-            stops_dict.append(location)
-        return stops_dict
+        return [get_location(s[0], s[1], geocode, predefined_stops) for s in stops]

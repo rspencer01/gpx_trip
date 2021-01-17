@@ -131,7 +131,7 @@ def construct_trip_map(input_file, output_file, predefined_stops: List[Location]
 
     for n, p in enumerate(info["stops"]):
         cr.set_source_rgba(0.5 + 0.5 * cos(n * 4.0), 0.5 + 0.5 * sin(n * 9.0), 0.0, 0.9)
-        cr.arc(*mm.rev_geocode((p["lon"], p["lat"])), 10, 0, 2 * 3.1415)
+        cr.arc(*mm.rev_geocode((p.longitude, p.latitude)), 10, 0, 2 * 3.1415)
         cr.close_path()
         cr.stroke()
     surface.write_to_png(open(output_file, "wb"))

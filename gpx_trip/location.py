@@ -13,10 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, List
 import hashlib
 
-from geopy import distance, exc
+from geopy import distance, exc, geocoders
+from loguru import logger
 
 
 @dataclass
@@ -29,7 +30,9 @@ class Location:
     longitude: float
 
     def distance_to(self, latitude: float, longitude: float):
-        return distance.distance((self.latitude, self.longitude), (latitude, longitude)).meters
+        return distance.distance(
+            (self.latitude, self.longitude), (latitude, longitude)
+        ).meters
 
     @classmethod
     def from_coordinates(cls, latitude: float, longitude: float) -> "Location":
@@ -69,3 +72,18 @@ class Location:
             country=d.get("country", None),
             emoji_name=d.get("emoji_name", None),
         )
+
+
+def get_location(
+    latitude: float, longitude: float, geocode, predefined: List[Location]
+) -> Location:
+    logger.debug("Fitting location ({}) to predefined locations", latitude, longitude)
+    for predefined_stop in predefined:
+        dist = predefined_stop.distance_to(latitude, longitude)
+        logger.debug("Stop {} is {}m away", predefined_stop.name, dist)
+        # TODO(robert) Each stop should be able to specify a size
+        if dist < 90:
+            return predefined_stop
+    if geocode:
+        return Location.from_geocoder(geocoders.Photon(), latitude, longitude)
+    return Location.from_coordinates(latitude, longitude)
